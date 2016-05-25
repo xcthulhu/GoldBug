@@ -17,7 +17,12 @@ class PublicKey (point: ECPoint) {
     new ECDomainParameters(params.getCurve, params.getG, params.getN, params.getH)
   }
 
-  private val key = new ECPublicKeyParameters(point, curve)
+  private val key = new ECPublicKeyParameters(point.normalize, curve)
+  private val verifier = {
+    val verifier = new ECDSASigner()
+    verifier.init(false, key)
+    verifier
+  }
 
   /**
    * Convert to a X.509 encoded string
@@ -34,7 +39,7 @@ class PublicKey (point: ECPoint) {
           builder.append("0")
       builder.append(input)
     }
-    val normalizedPoint = point.normalize
+    val normalizedPoint = key.getQ.normalize
 
     if (compressed) {
       builder.append(if (normalizedPoint.getYCoord.toBigInteger.testBit(0)) "03" else "02")
@@ -60,8 +65,6 @@ class PublicKey (point: ECPoint) {
   }
 
   def verify(input : Array[Byte], signature : Array[Byte]): Boolean = {
-    val verifier = new ECDSASigner()
-    verifier.init(false, key)
     val decoder = new ASN1InputStream(signature)
     try {
       val sequence = decoder.readObject().asInstanceOf[DLSequence]
@@ -87,7 +90,7 @@ class PublicKey (point: ECPoint) {
   override def equals(other: Any): Boolean = other match {
     case that: PublicKey =>
       (that canEqual this) && {
-        val thisNormalizedPoint = point.normalize
+        val thisNormalizedPoint = key.getQ.normalize
         val thatNormalizedPoint = that.key.getQ.normalize
         thisNormalizedPoint.getXCoord == thatNormalizedPoint.getXCoord &&
           thisNormalizedPoint.getYCoord == thatNormalizedPoint.getYCoord
