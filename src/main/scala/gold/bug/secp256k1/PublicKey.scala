@@ -51,10 +51,14 @@ class PublicKey (point: ECPoint) {
 
   /**
    * Verify a signature against this public key
-   * @param input Bytes representing the input to be verified
-   * @param signature The ECDSA signature bytes
+   * @param input A hex string representing the input to be verified
+   * @param signature The ECDSA signature bytes as a hex string
    * @return Whether the signature is valid
    */
+  def verify(input : String, signature: String): Boolean = {
+    verify(input, new BigInteger(signature, 16).toByteArray)
+  }
+
   def verify(input : Array[Byte], signature : Array[Byte]): Boolean = {
     val verifier = new ECDSASigner()
     verifier.init(false, key)
@@ -69,34 +73,12 @@ class PublicKey (point: ECPoint) {
     }
   }
 
-  /**
-   * Verify a signature against this public key
-   * @param input Bytes representing the input to be verified
-   * @param signature The ECDSA signature bytes as a hex string
-   * @return Whether the signature is valid
-   */
   def verify(input : Array[Byte], signature: String): Boolean = {
     verify(input, new BigInteger(signature, 16).toByteArray)
   }
 
-  /**
-   * Verify a signature against this public key
-   * @param input A hex string representing the input to be verified
-   * @param signature The ECDSA signature bytes as a hex string
-   * @return Whether the signature is valid
-   */
   def verify(input : String, signature : Array[Byte]): Boolean = {
     verify(MessageDigest.getInstance("SHA-256").digest(input.getBytes("UTF-8")), signature)
-  }
-
-  /**
-   * Verify a signature against this public key
-   * @param input A hex string representing the input to be verified
-   * @param signature The ECDSA signature bytes as a hex string
-   * @return Whether the signature is valid
-   */
-  def verify(input : String, signature: String): Boolean = {
-    verify(input, new BigInteger(signature, 16).toByteArray)
   }
 
   //noinspection ComparingUnrelatedTypes
