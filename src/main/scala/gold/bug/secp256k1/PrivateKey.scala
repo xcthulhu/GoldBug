@@ -2,36 +2,51 @@ package gold.bug.secp256k1
 
 import java.io.ByteArrayOutputStream
 import java.math.BigInteger
-import java.security.{MessageDigest, SecureRandom}
+import java.security.SecureRandom
 
 import org.spongycastle.asn1.sec.SECNamedCurves
 import org.spongycastle.asn1.{ASN1Integer, DERSequenceGenerator}
+import org.spongycastle.crypto.digests.SHA256Digest
 import org.spongycastle.crypto.generators.ECKeyPairGenerator
 import org.spongycastle.crypto.params.{ECDomainParameters, ECKeyGenerationParameters, ECPrivateKeyParameters}
-import org.spongycastle.crypto.signers.ECDSASigner
+import org.spongycastle.crypto.signers.{ECDSASigner, HMacDSAKCalculator}
 
-class PrivateKey(p: BigInteger) {
+class PrivateKey(D: BigInteger) {
   private val curve = {
     val params = SECNamedCurves.getByName("secp256k1")
     new ECDomainParameters(params.getCurve, params.getG, params.getN, params.getH)
   }
 
-  private val key = new ECPrivateKeyParameters(p, curve)
+  private val key = new ECPrivateKeyParameters(D, curve)
 
-  // TODO: RFC 6979? https://tools.ietf.org/html/rfc6979
+  /**
+   * Sign a string ; first takes a SHA256 hash of the string before signing (assumes UTF-8 encoding)
+   * @param data A UTF-8 string
+   * @return
+   */
+  def sign(data: String): String = {
+    sign(data.getBytes("UTF-8"))
+  }
+
   def sign(input : Array[Byte]): String = {
-    assert (input.length * 8 <= curve.getN.bitLength,
-      "Input cannot exceed curve modulus in bytes")
-    val signatures = {
-      val signer = new ECDSASigner()
+    val signature = {
+      // Generate an RFC 6979 compliant signature
+      // See:
+      //  - https://tools.ietf.org/html/rfc6979
+      //  - https://github.com/bcgit/bc-java/blob/master/core/src/test/java/org/bouncycastle/crypto/test/DeterministicDSATest.java#L27
+      val digest = new SHA256Digest()
+      val signer = new ECDSASigner(new HMacDSAKCalculator(digest))
+      val message = new Array[Byte](digest.getDigestSize)
+      digest.update(input, 0, input.length)
+      digest.doFinal(message, 0)
       signer.init(true, key)
-      signer.generateSignature(input)
+      signer.generateSignature(message)
     }
     val bos = new ByteArrayOutputStream()
     val s = new DERSequenceGenerator(bos)
     try {
-      s.addObject(new ASN1Integer(signatures(0)))
-      s.addObject(new ASN1Integer(signatures(1)))
+      s.addObject(new ASN1Integer(signature(0)))
+      s.addObject(new ASN1Integer(signature(1)))
     }
     finally {
       s.close()
@@ -43,21 +58,18 @@ class PrivateKey(p: BigInteger) {
   }
 
   /**
-   * Sign a string ; first takes a SHA256 hash of the string before signing (assumes UTF-8 encoding)
-   * @param data A UTF-8 string
+   * Get the public key that corresponds to this private key
+   * @return This private key's corresponding public key
+   */
+  def getPublicKey: PublicKey = {
+    new PublicKey(curve.getG.multiply(D).normalize)
+  }
+
+  /**
+   * Output the hex corresponding to this private key
    * @return
    */
-  def sign(data: String): String = {
-    sign(MessageDigest.getInstance("SHA-256").digest(data.getBytes("UTF-8")))
-  }
-
-  def getPublicKey: PublicKey = {
-    new PublicKey(curve.getG.multiply(p).normalize)
-  }
-
-
-
-  override def toString = p.toString(16)
+  override def toString = D.toString(16)
 
   //noinspection ComparingUnrelatedTypes
   def canEqual(other: Any): Boolean = other.isInstanceOf[PrivateKey]
@@ -69,7 +81,7 @@ class PrivateKey(p: BigInteger) {
         this.curve.getG == that.curve.getG &&
         this.curve.getN == that.curve.getN &&
         this.curve.getH == that.curve.getH &&
-        p == that.key.getD
+        D == that.key.getD
     case _ => false
   }
 
