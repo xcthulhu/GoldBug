@@ -103,9 +103,11 @@ object PrivateKey {
    * @param input A hexadecimal string
    * @return A private key with exponent D corresponding to the input
    */
-  def fromString(input : String) : PrivateKey = {
+  def apply(input : String) : PrivateKey = {
     new PrivateKey(new BigInteger(input, 16))
   }
+
+  def apply(input : PrivateKey) : PrivateKey = input
 
   /**
    * Generate a new random private key.  Uses java.security.SecureRandom

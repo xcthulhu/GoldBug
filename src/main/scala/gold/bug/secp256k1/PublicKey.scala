@@ -120,11 +120,13 @@ object PublicKey {
    * @param input An X.509 encoded hexadecimal string
    * @return
    */
-  def fromString(input:String) : PublicKey = {
+  def apply(input:String) : PublicKey = {
     new PublicKey(
       curve
         .getCurve
         .decodePoint(new BigInteger(input, 16).toByteArray)
         .normalize)
   }
+  def apply(input: PublicKey) : PublicKey = input
+  def apply(input: PrivateKey) : PublicKey = input.getPublicKey
 }

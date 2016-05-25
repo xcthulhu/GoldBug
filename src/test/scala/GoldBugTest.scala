@@ -6,15 +6,13 @@ class GoldBugTest extends FunSpec {
   describe("PublicKey From Known PrivateKey") {
     it("Should default to outputting compressed keys") {
       assert("0200bf0e38b86329f84ea90972e0f901d5ea0145f1ebac8c50fded77796d7a70e1"
-        == PrivateKey
-        .fromString("c6b7f6bfe5bb19b1e390e55ed4ba5df8af6068d0eb89379a33f9c19aacf6c08c")
+        == PrivateKey("c6b7f6bfe5bb19b1e390e55ed4ba5df8af6068d0eb89379a33f9c19aacf6c08c")
         .getPublicKey
         .toString)
     }
     it("Should handle optionally outputting an uncompressed key") {
       assert("0400bf0e38b86329f84ea90972e0f901d5ea0145f1ebac8c50fded77796d7a70e1be9e001b7ece071fb3986b5e96699fe28dbdeec8956682da78a5f6a115b9f14c"
-        == PrivateKey
-        .fromString("c6b7f6bfe5bb19b1e390e55ed4ba5df8af6068d0eb89379a33f9c19aacf6c08c")
+        == PrivateKey("c6b7f6bfe5bb19b1e390e55ed4ba5df8af6068d0eb89379a33f9c19aacf6c08c")
         .getPublicKey
         .toString(compressed = false))
     }
@@ -26,15 +24,15 @@ class GoldBugTest extends FunSpec {
       val pub1 = "02326209e52f6f17e987ec27c56a1321acf3d68088b8fb634f232f12ccbc9a4575"
       describe("Pair 1") {
         it("Can convert to a string and back") {
-          assert(PrivateKey.fromString(PrivateKey.fromString(priv1).toString) == PrivateKey.fromString(priv1))
+          assert(PrivateKey(PrivateKey(priv1).toString) == PrivateKey(priv1))
         }
         it("Can properly derive a public key") {
-          assert(PrivateKey.fromString(priv1).getPublicKey == PublicKey.fromString(pub1))
+          assert(PublicKey(PrivateKey(priv1)) == PublicKey(pub1))
         }
         it("Can encoded and decode a public key") {
-          assert(PublicKey.fromString(PublicKey.fromString(pub1).toString) == PublicKey.fromString(pub1))
-          assert(PublicKey.fromString(PublicKey.fromString(pub1).toString(compressed = false))
-            == PublicKey.fromString(pub1))
+          assert(PublicKey(PublicKey(pub1).toString) == PublicKey(pub1))
+          assert(PublicKey(PublicKey(pub1).toString(compressed = false))
+            == PublicKey(pub1))
         }
       }
 
@@ -42,21 +40,21 @@ class GoldBugTest extends FunSpec {
       val pub2 = "0333952d51e42f7db05a6c9dd347c4a7b4d4167ba29191ce1b86a0c0dd39bffb58"
       describe("Pair 2") {
         it("Can convert to a string and back") {
-          assert(PrivateKey.fromString(PrivateKey.fromString(priv2).toString) == PrivateKey.fromString(priv2))
+          assert(PrivateKey(PrivateKey(priv2).toString) == PrivateKey(priv2))
         }
         it("Can properly derive a public key") {
-          assert(PrivateKey.fromString(priv2).getPublicKey == PublicKey.fromString(pub2))
+          assert(PrivateKey(priv2).getPublicKey == PublicKey(pub2))
         }
         it("Can encoded and decode a public key") {
-          assert(PublicKey.fromString(PublicKey.fromString(pub2).toString) == PublicKey.fromString(pub2))
-          assert(PublicKey.fromString(PublicKey.fromString(pub2).toString(compressed = false))
-            == PublicKey.fromString(pub2))
+          assert(PublicKey(PublicKey(pub2).toString) == PublicKey(pub2))
+          assert(PublicKey(PublicKey(pub2).toString(compressed = false))
+            == PublicKey(pub2))
         }
         it("Private key is different than the one in Pair 1") {
-          assert(PrivateKey.fromString(PrivateKey.fromString(priv2).toString) != PrivateKey.fromString(priv1))
+          assert(PrivateKey(PrivateKey(priv2).toString) != PrivateKey(priv1))
         }
         it("Public key is different than the one in Pair 1") {
-          assert(PublicKey.fromString(PublicKey.fromString(pub2).toString) != PublicKey.fromString(pub1))
+          assert(PublicKey(PublicKey(pub2).toString) != PublicKey(PublicKey(pub1)))
         }
       }
     }
@@ -65,15 +63,15 @@ class GoldBugTest extends FunSpec {
       val priv = "e9d5516cb0ae45952fa11473a469587d6c0e8aeef3d6b0cca6f4497c725f314c"
       val pub = "033142109aba8e415c73defc83339dcec52f40ce762421c622347a7840294b3423"
       it("Can convert to a string and back") {
-        assert(PrivateKey.fromString(PrivateKey.fromString(priv).toString) == PrivateKey.fromString(priv))
+        assert(PrivateKey(PrivateKey(priv).toString) == PrivateKey(priv))
       }
       it("Can properly derive a public key") {
-        assert(PrivateKey.fromString(priv).getPublicKey == PublicKey.fromString(pub))
+        assert(PrivateKey(priv).getPublicKey == PublicKey(pub))
       }
       it("Can encoded and decode a public key") {
-        assert(PublicKey.fromString(PublicKey.fromString(pub).toString) == PublicKey.fromString(pub))
-        assert(PublicKey.fromString(PublicKey.fromString(pub).toString(compressed = false))
-          == PublicKey.fromString(pub))
+        assert(PublicKey(PublicKey(pub).toString) == PublicKey(pub))
+        assert(PublicKey(PublicKey(pub).toString(compressed = false))
+          == PublicKey(pub))
       }
     }
 
@@ -81,21 +79,21 @@ class GoldBugTest extends FunSpec {
       val priv = "9e15c053f17c0991163073a73bc7e4b234c6c55c5f85bb397ed39f14c46a64bd"
       val pub = "02256b4b6062521370d21447914fae65deacd6a5d86347e6e69e66daab8616fae1"
       it("Can convert to a string and back") {
-        assert(PrivateKey.fromString(PrivateKey.fromString(priv).toString) == PrivateKey.fromString(priv))
+        assert(PrivateKey(PrivateKey(priv).toString) == PrivateKey(priv))
       }
       it("Can properly derive a public key") {
-        assert(PrivateKey.fromString(priv).getPublicKey == PublicKey.fromString(pub))
+        assert(PrivateKey(priv).getPublicKey == PublicKey(pub))
       }
       it("Can encoded and decode a public key") {
-        assert(PublicKey.fromString(PublicKey.fromString(pub).toString) == PublicKey.fromString(pub))
-        assert(PublicKey.fromString(PublicKey.fromString(pub).toString(compressed = false))
-          == PublicKey.fromString(pub))
+        assert(PublicKey(PublicKey(pub).toString) == PublicKey(pub))
+        assert(PublicKey(PublicKey(pub).toString(compressed = false))
+          == PublicKey(pub))
       }
     }
   }
 
   describe("Signature Tests") {
-    val privKey = PrivateKey.fromString("8295702b2273896ae085c3caebb02985cab02038251e10b6f67a14340edb51b0")
+    val privKey = PrivateKey("8295702b2273896ae085c3caebb02985cab02038251e10b6f67a14340edb51b0")
     val pubKey = privKey.getPublicKey
 
     it("Should be able to verify reference signatures") {
