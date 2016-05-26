@@ -1,6 +1,5 @@
 import org.scalatest.FunSpec
-import gold.bug.secp256k1.PublicKey
-import gold.bug.secp256k1.PrivateKey
+import gold.bug.secp256k1.Curve._
 
 class GoldBugTest extends FunSpec {
   describe("PublicKey From Known PrivateKey") {
