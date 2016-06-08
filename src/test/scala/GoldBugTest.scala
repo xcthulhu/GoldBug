@@ -183,12 +183,34 @@ class GoldBugTest extends FunSpec {
               "304402200e4b0560c42e4de19ddc2541f5531f7614628e9d01503d730ebe38c182baee8702206b80868e3d67fec2a9d5a594edd6b4f0266044965fe41e7cc3bff65feb922b7c"))
     }
 
-    it("Should verify signatures signed by the public key's private key") {
+    it("Should verify ECDSA signatures signed by the public key's private key") {
       def check(data: String): Boolean = {
-        pubKey.verify(data, privKey.sign(data))
+        pubKey.verify(data, privKey.sign(data, includeRecoveryByte = false))
       }
       assert(check("foo"))
       assert(check("bar"))
+      assert(check("yabba dabba dooo"))
+      assert(
+          check("I wanna hold 'em like they do in Texas, please\n" +
+              "Fold 'em, let 'em, hit me, raise it, baby, stay with me (I love it)\n" +
+              "Love game intuition play the cards with Spades to start\n" +
+              "And after he's been hooked I'll play the one that's on his heart"))
+      assert(check("☕️   ⓝ  🀤  ⎈  ∲"))
+      assert(check(
+              "इसकी दो प्रजातियाँ हैं सुपर्ब लायर बर्ड तथा अलबर्ट्स लायर बर्ड"))
+      assert(
+          check("금조류(琴鳥類, lyrebird)는 오스트레일리아 남부에 사는 참새목의 한 부류로, 주변의 소리를 잘 따라한다. 거문고새라고도 한다."))
+      assert(
+          check("コトドリ属（コトドリぞく、学名 Menura）はコトドリ上科コトドリ科 Menuridae に属する鳥の属の一つ。コトドリ科は単型である。"))
+    }
+
+    it("Should verify signatures extended with a recovery byte signed by the public key's private key") {
+      def check(data: String): Boolean = {
+        pubKey.verify(data, privKey.sign(data, includeRecoveryByte = true))
+      }
+      assert(check("foo"))
+      assert(check("barrr"))
+//      assert(check("bar"))
       assert(check("yabba dabba dooo"))
       assert(
           check("I wanna hold 'em like they do in Texas, please\n" +
