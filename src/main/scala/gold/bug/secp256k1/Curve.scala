@@ -1,18 +1,19 @@
 package gold.bug.secp256k1
 
+/**
+  * WARNING: Scala gets confused when you try to deserialize a byte array into a `BigInteger`,
+  * so *always* use `java.math.BigInteger` to be maximally explicit - import java.math.BigInteger at your own risk!
+  */
 import java.io.ByteArrayOutputStream
-import java.math.BigInteger
 import java.security.{MessageDigest, SecureRandom}
+import java.util.Random
 
-import org.spongycastle.asn1.sec.SECNamedCurves
 import org.spongycastle.asn1._
-import org.spongycastle.crypto.digests.SHA256Digest
+import org.spongycastle.asn1.sec.SECNamedCurves
 import org.spongycastle.crypto.generators.ECKeyPairGenerator
 import org.spongycastle.crypto.params.{ECDomainParameters, ECKeyGenerationParameters, ECPrivateKeyParameters, ECPublicKeyParameters}
-import org.spongycastle.crypto.signers.{ECDSASigner, HMacDSAKCalculator}
+import org.spongycastle.crypto.signers.ECDSASigner
 import org.spongycastle.math.ec.{ECAlgorithms, ECPoint}
-
-import scala.util.control.NonFatal
 
 // TODO: Parametrize with ECDomainParameters or something?
 object Curve { self =>
@@ -22,12 +23,12 @@ object Curve { self =>
         params.getCurve, params.getG, params.getN, params.getH)
   }
 
-  class PrivateKey(D: BigInteger) {
+  class PrivateKey(D: java.math.BigInteger) {
     private val curve = self.curve
     private val key = new ECPrivateKeyParameters(D, curve)
 
     /**
-      * Sign a string ; first takes a SHA256 hash of the string before signing (assumes UTF-8 encoding)
+      * Sign a UTF-8 encoded string (first takes SHA256 hash of string)
       * @param data A UTF-8 string
       * @param includeRecoveryByte A boolean indicating whether a recovery byte should be included (defaults to true)
       * @return
@@ -36,41 +37,26 @@ object Curve { self =>
       sign(data.getBytes("UTF-8"), includeRecoveryByte)
     }
 
-    private def findRecoveryByte(
-        hash: Array[Byte], r: BigInteger, s: BigInteger): Byte = {
-      val publicKey: PublicKey = this.getPublicKey
-      (0x1B to 0x1F)
-        .map(_.toByte)
-        .find((x: Byte) =>
-              try {
-            val candidate = PublicKey.ecrecover(hash, x, r, s)
-            publicKey == candidate
-          } catch {
-            case NonFatal(t) =>
-              false
-        }) match {
-        case Some(x) => x
-        case None =>
-          throw new RuntimeException("Could not find recovery byte")
-      }
+    /**
+      * Sign a UTF-8 encoded string (first takes SHA256 hash of string)
+      * @param data A UTF-8 string
+      * @param includeRecoveryByte A boolean indicating whether a recovery byte should be included (defaults to true)
+      * @return
+      */
+    def sign(data: Array[Byte], includeRecoveryByte: Boolean): String = {
+      signHash(MessageDigest.getInstance("SHA-256").digest(data),
+               includeRecoveryByte)
     }
 
-    def sign(input: Array[Byte], includeRecoveryByte: Boolean): String = {
-      // Generate an RFC 6979 compliant signature
-      // See:
-      //  - https://tools.ietf.org/html/rfc6979
-      //  - https://github.com/bcgit/bc-java/blob/master/core/src/test/java/org/bouncycastle/crypto/test/DeterministicDSATest.java#L27
-      val digest = new SHA256Digest()
-      val hash = new Array[Byte](digest.getDigestSize)
-      digest.update(input, 0, input.length)
-      digest.doFinal(hash, 0)
-      val signature = {
-        val signer = new ECDSASigner(new HMacDSAKCalculator(digest))
-        signer.init(true, key)
-        signer.generateSignature(hash)
-      }
-      val r: BigInteger = signature(0)
-      val s: BigInteger = signature(1)
+    // TODO: Make this actually deterministic
+    // https://github.com/vbuterin/pybitcointools/blob/8e8a33d7281c871950519e5f256ad08cf0d5df69/bitcoin/main.py#L493
+    def deterministicGenerateK(hash: Array[Byte]): java.math.BigInteger = {
+      val random: Random = new SecureRandom()
+      new java.math.BigInteger(curve.getN.bitLength, random)
+    }
+
+    private def ecdsaDERBytes(
+        r: java.math.BigInteger, s: java.math.BigInteger): Array[Byte] = {
       val bos = new ByteArrayOutputStream()
       val sequenceGenerator = new DERSequenceGenerator(bos)
       try {
@@ -79,12 +65,40 @@ object Curve { self =>
       } finally {
         sequenceGenerator.close()
       }
+      bos.toByteArray
+    }
+
+    /**
+      * Sign a byte array representing hashed data
+      * @param hash A byte array to be signed
+      * @param includeRecoveryByte A boolean indicating whether a recovery byte should be included
+      * @return A hex string containing the DER signature
+      */
+    def signHash(
+        hash: Array[Byte], includeRecoveryByte: Boolean = true): String = {
+      // Generate an RFC 6979 compliant signature
+      // See:
+      //  - https://tools.ietf.org/html/rfc6979
+      //  - https://github.com/bcgit/bc-java/blob/master/core/src/test/java/org/bouncycastle/crypto/test/DeterministicDSATest.java#L27
+      val z: java.math.BigInteger = new java.math.BigInteger(1, hash)
+      val k: java.math.BigInteger = deterministicGenerateK()
+      val kp: ECPoint = curve.getG.multiply(k).normalize()
+      val n: java.math.BigInteger = curve.getN
+      val r: java.math.BigInteger = kp.getXCoord.toBigInteger.mod(n)
+      val _s: java.math.BigInteger =
+        k.modInverse(n).multiply(r.multiply(D).add(z)).mod(n)
+      val s: java.math.BigInteger =
+        if (_s.add(_s).compareTo(n) == -1) _s else n.subtract(_s)
       val builder = new StringBuilder()
       if (includeRecoveryByte) {
-        val recoveryByte = findRecoveryByte(hash, r, s)
+        val recoveryByte =
+          0x1B +
+          (if (kp.getYCoord.toBigInteger.testBit(0) ^ _s != s) 1 else 0) +
+          (if (r.compareTo(n) == -1) 0 else 2)
         builder.append("%02x".format(recoveryByte & 0xff))
       }
-      for (byte <- bos.toByteArray) builder.append("%02x".format(byte & 0xff))
+      for (byte <- ecdsaDERBytes(r, s)) builder.append(
+          "%02x".format(byte & 0xff))
       builder.toString()
     }
 
@@ -129,7 +143,7 @@ object Curve { self =>
       * @return A private key with exponent D corresponding to the input
       */
     def apply(input: String): PrivateKey = {
-      new PrivateKey(new BigInteger(input, 16))
+      new PrivateKey(new java.math.BigInteger(input, 16))
     }
 
     /**
@@ -169,6 +183,21 @@ object Curve { self =>
 
     override def toString = toString()
 
+    private def verifyECDSA(
+        hash: Array[Byte], signature: Array[Byte]): Boolean = {
+      val decoder = new ASN1InputStream(signature)
+      try {
+        val sequence = decoder.readObject().asInstanceOf[DLSequence]
+        val r = sequence.getObjectAt(0).asInstanceOf[ASN1Integer].getValue
+        val s = sequence.getObjectAt(1).asInstanceOf[ASN1Integer].getValue
+        val verifier = new ECDSASigner()
+        verifier.init(false, key)
+        verifier.verifySignature(hash, r, s)
+      } finally {
+        decoder.close()
+      }
+    }
+
     /**
       * Verify a signature against this public key
       * @param hash Bytes representing the hashed input to be verified
@@ -176,23 +205,14 @@ object Curve { self =>
       * @return Boolean whether the signature is valid
       */
     def verifyHash(hash: Array[Byte], signature: Array[Byte]): Boolean = {
+      assert(hash.length * 8 == curve.getN.bitLength,
+             "Hash must have " + curve.getN.bitLength + "bits (had " +
+             hash.length * 8 + " bits)")
       signature(0) match {
         case 0x1B | 0x1C | 0x1D | 0x1E =>
           this == PublicKey.recoverPublicKeyFromHash(hash, signature)
         case 0x30 =>
-          val decoder = new ASN1InputStream(signature)
-          try {
-            val verifier = new ECDSASigner()
-            verifier.init(false, key)
-            val sequence = decoder.readObject().asInstanceOf[DLSequence]
-            val r: BigInteger =
-              sequence.getObjectAt(0).asInstanceOf[ASN1Integer].getValue
-            val s: BigInteger =
-              sequence.getObjectAt(1).asInstanceOf[ASN1Integer].getValue
-            verifier.verifySignature(hash, r, s)
-          } finally {
-            decoder.close()
-          }
+          verifyECDSA(hash, signature)
         case _ => throw new RuntimeException("Unknown signature format")
       }
     }
@@ -214,7 +234,7 @@ object Curve { self =>
       * @return Boolean whether the signature is valid
       */
     def verify(input: Array[Byte], signature: String): Boolean = {
-      verifyHash(input, new BigInteger(signature, 16).toByteArray)
+      verify(input, new java.math.BigInteger(signature, 16).toByteArray)
     }
 
     /**
@@ -234,7 +254,7 @@ object Curve { self =>
       * @return Boolean whether the signature is valid
       */
     def verify(input: String, signature: String): Boolean = {
-      verify(input, new BigInteger(signature, 16).toByteArray)
+      verify(input, new java.math.BigInteger(signature, 16).toByteArray)
     }
 
     //noinspection ComparingUnrelatedTypes
@@ -265,7 +285,9 @@ object Curve { self =>
 
     private def zeroPadLeft(builder: StringBuilder, input: String): Unit = {
       assert(input.length * 4 <= curve.getN.bitLength,
-             "Input cannot have more bits than the curve modulus")
+             "Input:\n\n" + input + "\n\ncannot have more than " +
+             curve.getN.bitLength + "bits, the curve modulus (had " +
+             input.length * 4 + " bits)")
       if (input.length * 4 < curve.getN.bitLength)
         for (_ <- 1 to (curve.getN.bitLength / 4 - input.length)) builder
           .append("0")
@@ -273,10 +295,9 @@ object Curve { self =>
     }
 
     private def encodeXCoordinate(
-        yEven: Boolean, xCoordinate: BigInteger): String = {
+        yEven: Boolean, xCoordinate: java.math.BigInteger): String = {
       val builder = new StringBuilder()
-      builder.append(if (yEven) "02"
-          else "03")
+      builder.append(if (yEven) "02" else "03")
       zeroPadLeft(builder, xCoordinate.toString(16))
       builder.toString()
     }
@@ -301,7 +322,7 @@ object Curve { self =>
 
     private def decodeECPoint(input: String): ECPoint = {
       curve.getCurve
-        .decodePoint(new BigInteger(input, 16).toByteArray)
+        .decodePoint(new java.math.BigInteger(input, 16).toByteArray)
         .normalize
     }
 
@@ -352,13 +373,16 @@ object Curve { self =>
       */
     def ecrecover(hash: Array[Byte],
                   recoveryByte: Byte,
-                  r: BigInteger,
-                  s: BigInteger): PublicKey = {
+                  r: java.math.BigInteger,
+                  s: java.math.BigInteger): PublicKey = {
+      assert(hash.length * 8 == curve.getN.bitLength,
+             "Hash must have " + curve.getN.bitLength + "bits (had " +
+             hash.length * 8 + " bits)")
       assert(0x1B <= recoveryByte && recoveryByte <= 0x1E,
              "Recovery byte must be 0x1B, 0x1C, 0x1D, or 0x1E")
-      assert(r.toByteArray.length <= curve.getN.bitLength / 4,
+      assert(r.toByteArray.length * 4 <= curve.getN.bitLength,
              "R component out of range")
-      assert(s.toByteArray.length <= curve.getN.bitLength / 4,
+      assert(s.toByteArray.length * 4 <= curve.getN.bitLength,
              "S component out of range")
       val yEven = ((recoveryByte - 0x1B) & 1) == 0
       val isSecondKey = ((recoveryByte - 0x1B) >> 1) == 1
@@ -367,15 +391,13 @@ object Curve { self =>
       if (isSecondKey)
         assert(
             r.compareTo(p.mod(n)) >= 0, "Unable to find second key candidate")
-      val r_ = if (isSecondKey) r.add(n) else r
       // 1.1. Let x = r + jn.
-      val encodedPoint = encodeXCoordinate(yEven, r_)
+      val encodedPoint = encodeXCoordinate(
+          yEven, if (isSecondKey) r.add(n) else r)
       val R = decodeECPoint(encodedPoint)
-      //assert(!R.multiply(n).isInfinity, "Candidate is the point at infinity")
-      val eInv = n.subtract(new BigInteger(hash))
-      val rInv = r_.modInverse(n)
-      // 1.6.1 Compute Q = r^-1 (sR -  eG)
-      //               Q = r^-1 (sR + -eG)
+      val eInv = n.subtract(new java.math.BigInteger(1, hash))
+      val rInv = r.modInverse(n)
+      // 1.6.1 Compute Q = r^-1 (sR + -eG)
       new PublicKey(
           ECAlgorithms
             .sumOfTwoMultiplies(curve.getG, eInv, R, s)
@@ -384,7 +406,8 @@ object Curve { self =>
     }
 
     def recoverPublicKey(input: String, signature: String): PublicKey = {
-      recoverPublicKey(input, new BigInteger(signature, 16).toByteArray)
+      recoverPublicKey(
+          input, new java.math.BigInteger(signature, 16).toByteArray)
     }
 
     def recoverPublicKey(input: String, signature: Array[Byte]): PublicKey = {
@@ -392,7 +415,8 @@ object Curve { self =>
     }
 
     def recoverPublicKey(input: Array[Byte], signature: String): PublicKey = {
-      recoverPublicKey(input, new BigInteger(signature, 16).toByteArray)
+      recoverPublicKey(
+          input, new java.math.BigInteger(signature, 16).toByteArray)
     }
 
     def recoverPublicKey(
@@ -403,13 +427,16 @@ object Curve { self =>
 
     def recoverPublicKeyFromHash(
         hash: Array[Byte], signature: Array[Byte]): PublicKey = {
+      assert(hash.length * 8 == curve.getN.bitLength,
+             "Hash must have " + curve.getN.bitLength + "bits (had " +
+             hash.length * 8 + " bits)")
       val decoder = new ASN1InputStream(signature.slice(1, signature.length))
       try {
         val recoveryByte = signature(0)
         val sequence = decoder.readObject().asInstanceOf[DLSequence]
-        val r: BigInteger =
+        val r: java.math.BigInteger =
           sequence.getObjectAt(0).asInstanceOf[ASN1Integer].getValue
-        val s: BigInteger =
+        val s: java.math.BigInteger =
           sequence.getObjectAt(1).asInstanceOf[ASN1Integer].getValue
         ecrecover(hash, recoveryByte, r, s)
       } finally {

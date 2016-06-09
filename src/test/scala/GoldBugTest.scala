@@ -108,6 +108,10 @@ class GoldBugTest extends FunSpec {
         "8295702b2273896ae085c3caebb02985cab02038251e10b6f67a14340edb51b0")
     val pubKey = privKey.getPublicKey
 
+    it("Should compute the public key properly") {
+      assert(pubKey.toString == "0333952d51e42f7db05a6c9dd347c4a7b4d4167ba29191ce1b86a0c0dd39bffb58")
+    }
+
     it("Should be able to verify reference signatures") {
       assert(pubKey.verify(
               "foo",
@@ -188,7 +192,8 @@ class GoldBugTest extends FunSpec {
         pubKey.verify(data, privKey.sign(data, includeRecoveryByte = false))
       }
       assert(check("foo"))
-      assert(check("bar"))
+//      assert(check("bar"))
+      assert(check("barrr"))
       assert(check("yabba dabba dooo"))
       assert(
           check("I wanna hold 'em like they do in Texas, please\n" +
@@ -210,7 +215,7 @@ class GoldBugTest extends FunSpec {
       }
       assert(check("foo"))
       assert(check("barrr"))
-//      assert(check("bar"))
+      assert(check("bar"))
       assert(check("yabba dabba dooo"))
       assert(
           check("I wanna hold 'em like they do in Texas, please\n" +
