@@ -67,12 +67,13 @@ object Curve { self =>
     }
 
     /**
-      * Generate a random number k following the specification in RFC 6979, Section 3.2
-      * https://tools.ietf.org/html/rfc6979#section-3.2
+      * Generate random numbers following the specification in RFC 6979, Section 3.2
+      * See: https://tools.ietf.org/html/rfc6979#section-3.2
       * @param messageHash The data to be used in generating the signature
-      * @return A stream of random numbers deterministically generated from the messageHash and the private key
+      * @return A deterministic random number generator, where the first generated value is precisely the number specified in RFC 6979
       */
-    def deterministicGenerateK(messageHash: Array[Byte]): HMacDSAKCalculator = {
+    def getDeterministicKGenerator(
+        messageHash: Array[Byte]): HMacDSAKCalculator = {
       val curveBytes: Int = curve.getN.bitLength / 8
       assert(curveBytes * 8 == curve.getN.bitLength,
              "Curve is not an even number of bytes in length")
@@ -106,9 +107,7 @@ object Curve { self =>
     def signHash(messageHash: Array[Byte],
                  includeRecoveryByte: Boolean = true): String = {
       // Generate an RFC 6979 compliant signature
-      // See:
-      //  - https://tools.ietf.org/html/rfc6979
-      //  - https://github.com/bcgit/bc-java/blob/master/core/src/test/java/org/bouncycastle/crypto/test/DeterministicDSATest.java#L27
+      // See: https://tools.ietf.org/html/rfc6979
       val curveBytes: Int = curve.getN.bitLength / 8
       assert(curveBytes * 8 == curve.getN.bitLength,
              "Curve is not an even number of bytes in length")
@@ -117,7 +116,7 @@ object Curve { self =>
           "Hashed input is not the same length as the number of bytes in the curve")
       val z = new java.math.BigInteger(1, messageHash)
       val n = curve.getN
-      val kCalculator = deterministicGenerateK(messageHash)
+      val kCalculator = getDeterministicKGenerator(messageHash)
       class Parameters(val recoveryByte: Byte,
                        val r: java.math.BigInteger,
                        val s: java.math.BigInteger)

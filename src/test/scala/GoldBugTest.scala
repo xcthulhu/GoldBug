@@ -276,7 +276,7 @@ class GoldBugTest extends FunSpec {
         Array.fill[Byte](length - 1)(0x00) ++ Array(i.toByte)
       def check(i: Int): java.math.BigInteger =
         PrivateKey(encode(i, 32))
-          .deterministicGenerateK(sha256(i.toString))
+          .getDeterministicKGenerator(sha256(i.toString))
           .nextK
       assert(
           toHex(sha256(0.toString)) == "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9")
