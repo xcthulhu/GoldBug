@@ -199,7 +199,8 @@ class GoldBugTest extends FunSpec {
         pubKey.verify(data, privKey.sign(data, includeRecoveryByte = false))
       }
       assert(check("foo"))
-//      assert(check("bar"))
+      assert(check("bar"))
+      assert(check("barr"))
       assert(check("barrr"))
       assert(check("yabba dabba dooo"))
       assert(
@@ -221,8 +222,9 @@ class GoldBugTest extends FunSpec {
         pubKey.verify(data, privKey.sign(data, includeRecoveryByte = true))
       }
       assert(check("foo"))
-      assert(check("barrr"))
       assert(check("bar"))
+      assert(check("barr"))
+      assert(check("barrr"))
       assert(check("yabba dabba dooo"))
       assert(
           check("I wanna hold 'em like they do in Texas, please\n" +

@@ -14,6 +14,7 @@ import org.spongycastle.crypto.generators.ECKeyPairGenerator
 import org.spongycastle.crypto.params._
 import org.spongycastle.crypto.signers.{ECDSASigner, HMacDSAKCalculator}
 import org.spongycastle.math.ec.{ECAlgorithms, ECPoint}
+import org.spongycastle.util.encoders.Hex
 
 import scala.annotation.tailrec
 
@@ -134,10 +135,9 @@ object Curve { self =>
         else new Parameters(recoveryByte, r, s)
       }
       val parameters = getParameters
-      ((if (includeRecoveryByte) Array(parameters.recoveryByte)
-        else Array.empty) ++ ecdsaDERBytes(parameters.r, parameters.s))
-        .map("%02x" format _)
-        .mkString
+      Hex.toHexString(
+          (if (includeRecoveryByte) Array(parameters.recoveryByte)
+           else Array.empty) ++ ecdsaDERBytes(parameters.r, parameters.s))
     }
 
     /**
@@ -177,6 +177,7 @@ object Curve { self =>
 
     /**
       * Construct a random new private key
+      * @return A random new private key
       */
     def apply(): PrivateKey = {
       PrivateKey.generateRandom
@@ -188,7 +189,7 @@ object Curve { self =>
       * @return A private key with exponent D corresponding to the input
       */
     def apply(input: String): PrivateKey = {
-      new PrivateKey(new java.math.BigInteger(input, 16))
+      new PrivateKey(new java.math.BigInteger(1, Hex.decode(input)))
     }
 
     /**
@@ -197,7 +198,7 @@ object Curve { self =>
       * @return A private key with exponent D corresponding to the input
       */
     def apply(input: Array[Byte]): PrivateKey = {
-      new PrivateKey(new java.math.BigInteger(Array(0x00.toByte) ++ input))
+      new PrivateKey(new java.math.BigInteger(1, Array(0x00.toByte) ++ input))
     }
 
     /**
@@ -306,7 +307,7 @@ object Curve { self =>
       * @return Boolean whether the signature is valid
       */
     def verify(input: Array[Byte], signature: String): Boolean = {
-      verify(input, new java.math.BigInteger(signature, 16).toByteArray)
+      verify(input, Hex.decode(signature))
     }
 
     /**
@@ -326,7 +327,7 @@ object Curve { self =>
       * @return Boolean whether the signature is valid
       */
     def verify(input: String, signature: String): Boolean = {
-      verify(input, new java.math.BigInteger(signature, 16).toByteArray)
+      verify(input, Hex.decode(signature))
     }
 
     //noinspection ComparingUnrelatedTypes
@@ -389,9 +390,7 @@ object Curve { self =>
     }
 
     private def decodeECPoint(input: String): ECPoint = {
-      curve.getCurve
-        .decodePoint(new java.math.BigInteger(input, 16).toByteArray)
-        .normalize
+      curve.getCurve.decodePoint(Hex.decode(input)).normalize
     }
 
     /**
@@ -474,8 +473,7 @@ object Curve { self =>
     }
 
     def recoverPublicKey(input: String, signature: String): PublicKey = {
-      recoverPublicKey(
-          input, new java.math.BigInteger(signature, 16).toByteArray)
+      recoverPublicKey(input, Hex.decode(signature))
     }
 
     def recoverPublicKey(input: String, signature: Array[Byte]): PublicKey = {
@@ -483,8 +481,7 @@ object Curve { self =>
     }
 
     def recoverPublicKey(input: Array[Byte], signature: String): PublicKey = {
-      recoverPublicKey(
-          input, new java.math.BigInteger(signature, 16).toByteArray)
+      recoverPublicKey(input, Hex.decode(signature))
     }
 
     def recoverPublicKey(
