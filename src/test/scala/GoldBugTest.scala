@@ -5,7 +5,7 @@ import org.scalatest.FunSpec
 
 class GoldBugTest extends FunSpec {
   def toHex(buf: Array[Byte]): String =
-    buf.map("%02X" format _).mkString.toLowerCase
+    buf.map("%02x" format _).mkString
   def sha256(s: String): Array[Byte] =
     MessageDigest.getInstance("SHA-256").digest(s.getBytes("UTF-8"))
 
