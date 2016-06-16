@@ -1,10 +1,7 @@
 package gold.bug.secp256k1
 
-/**
-  * WARNING: Scala gets confused when you try to deserialize a byte array into a `BigInteger`,
-  * so *always* use `java.math.BigInteger` to be maximally explicit - import java.math.BigInteger at your own risk!
-  */
 import java.io.ByteArrayOutputStream
+import java.math.BigInteger
 import java.security.{MessageDigest, SecureRandom}
 
 import org.spongycastle.asn1._
@@ -26,7 +23,7 @@ object Curve { self =>
         params.getCurve, params.getG, params.getN, params.getH)
   }
 
-  class PrivateKey(D: java.math.BigInteger) {
+  class PrivateKey(D: BigInteger) {
     private val curve = self.curve
     private val key = new ECPrivateKeyParameters(D, curve)
 
@@ -86,8 +83,7 @@ object Curve { self =>
       kCalculator
     }
 
-    private def ecdsaDERBytes(
-        r: java.math.BigInteger, s: java.math.BigInteger): Array[Byte] = {
+    private def ecdsaDERBytes(r: BigInteger, s: BigInteger): Array[Byte] = {
       val bos = new ByteArrayOutputStream()
       val sequenceGenerator = new DERSequenceGenerator(bos)
       try {
@@ -115,12 +111,12 @@ object Curve { self =>
       assert(
           curveBytes == messageHash.length,
           "Hashed input is not the same length as the number of bytes in the curve")
-      val z = new java.math.BigInteger(1, messageHash)
+      val z = new BigInteger(1, messageHash)
       val n = curve.getN
       val kCalculator = getDeterministicKGenerator(messageHash)
-      class Parameters(val recoveryByte: Byte,
-                       val r: java.math.BigInteger,
-                       val s: java.math.BigInteger)
+      abstract class P
+      case class Parameters(recoveryByte: Byte, r: BigInteger, s: BigInteger)
+          extends P
       @tailrec def getParameters: Parameters = {
         val k = kCalculator.nextK
         val kp = curve.getG.multiply(k).normalize
@@ -130,8 +126,8 @@ object Curve { self =>
         val recoveryByte =
           (0x1B + (if (kp.getYCoord.toBigInteger.testBit(0) ^ _s != s) 1
                    else 0) + (if (r.compareTo(n) == -1) 0 else 2)).toByte
-        if (s.equals(java.math.BigInteger.ZERO) ||
-            r.equals(java.math.BigInteger.ZERO)) getParameters
+        if (s.equals(BigInteger.ZERO) || r.equals(BigInteger.ZERO))
+          getParameters
         else new Parameters(recoveryByte, r, s)
       }
       val parameters = getParameters
@@ -189,7 +185,7 @@ object Curve { self =>
       * @return A private key with exponent D corresponding to the input
       */
     def apply(input: String): PrivateKey = {
-      new PrivateKey(new java.math.BigInteger(1, Hex.decode(input)))
+      new PrivateKey(new BigInteger(1, Hex.decode(input)))
     }
 
     /**
@@ -198,7 +194,7 @@ object Curve { self =>
       * @return A private key with exponent D corresponding to the input
       */
     def apply(input: Array[Byte]): PrivateKey = {
-      new PrivateKey(new java.math.BigInteger(1, input))
+      new PrivateKey(new BigInteger(1, input))
     }
 
     /**
@@ -207,15 +203,15 @@ object Curve { self =>
       * @return A private key with exponent D corresponding to the input
       */
     def apply(input: String, base: Int): PrivateKey = {
-      new PrivateKey(new java.math.BigInteger(input, base))
+      new PrivateKey(new BigInteger(input, base))
     }
 
     /**
-      * Construct a private key from a java.math.BigInteger
+      * Construct a private key from a BigInteger
       * @param input A hexadecimal string
       * @return A private key with exponent D corresponding to the input
       */
-    def apply(input: java.math.BigInteger): PrivateKey = {
+    def apply(input: BigInteger): PrivateKey = {
       new PrivateKey(input)
     }
 
@@ -244,6 +240,8 @@ object Curve { self =>
     private val curve = self.curve
     private val point = _point.normalize
     private val key = new ECPublicKeyParameters(point, curve)
+    private val verifier = new ECDSASigner()
+    verifier.init(false, key)
 
     /**
       * Convert to a X.509 encoded string
@@ -263,8 +261,6 @@ object Curve { self =>
         val sequence = decoder.readObject().asInstanceOf[DLSequence]
         val r = sequence.getObjectAt(0).asInstanceOf[ASN1Integer].getValue
         val s = sequence.getObjectAt(1).asInstanceOf[ASN1Integer].getValue
-        val verifier = new ECDSASigner()
-        verifier.init(false, key)
         verifier.verifySignature(hash, r, s)
       } finally {
         decoder.close()
@@ -368,7 +364,7 @@ object Curve { self =>
     }
 
     private def encodeXCoordinate(
-        yEven: Boolean, xCoordinate: java.math.BigInteger): String = {
+        yEven: Boolean, xCoordinate: BigInteger): String = {
       val builder = new StringBuilder()
       builder.append(if (yEven) "02" else "03")
       zeroPadLeft(builder, xCoordinate.toString(16))
@@ -440,8 +436,8 @@ object Curve { self =>
       */
     def ecrecover(hash: Array[Byte],
                   recoveryByte: Byte,
-                  r: java.math.BigInteger,
-                  s: java.math.BigInteger): PublicKey = {
+                  r: BigInteger,
+                  s: BigInteger): PublicKey = {
       assert(hash.length * 8 == curve.getN.bitLength,
              "Hash must have " + curve.getN.bitLength + "bits (had " +
              hash.length * 8 + " bits)")
@@ -462,7 +458,7 @@ object Curve { self =>
       val encodedPoint = encodeXCoordinate(
           yEven, if (isSecondKey) r.add(n) else r)
       val R = decodeECPoint(encodedPoint)
-      val eInv = n.subtract(new java.math.BigInteger(1, hash))
+      val eInv = n.subtract(new BigInteger(1, hash))
       val rInv = r.modInverse(n)
       // 1.6.1 Compute Q = r^-1 (sR + -eG)
       new PublicKey(
@@ -499,9 +495,9 @@ object Curve { self =>
       try {
         val recoveryByte = signature(0)
         val sequence = decoder.readObject().asInstanceOf[DLSequence]
-        val r: java.math.BigInteger =
+        val r: BigInteger =
           sequence.getObjectAt(0).asInstanceOf[ASN1Integer].getValue
-        val s: java.math.BigInteger =
+        val s: BigInteger =
           sequence.getObjectAt(1).asInstanceOf[ASN1Integer].getValue
         ecrecover(hash, recoveryByte, r, s)
       } finally {

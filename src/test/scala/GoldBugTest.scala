@@ -1,3 +1,4 @@
+import java.math.BigInteger
 import java.security.MessageDigest
 
 import gold.bug.secp256k1.Curve._
@@ -276,7 +277,7 @@ class GoldBugTest extends FunSpec {
        */
       def encode(i: Int, length: Int): Array[Byte] =
         Array.fill[Byte](length - 1)(0x00) ++ Array(i.toByte)
-      def check(i: Int): java.math.BigInteger =
+      def check(i: Int): BigInteger =
         PrivateKey(encode(i, 32))
           .getDeterministicKGenerator(sha256(i.toString))
           .nextK
