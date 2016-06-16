@@ -1,7 +1,14 @@
-import org.scalatest.FunSpec
+import java.security.MessageDigest
+
 import gold.bug.secp256k1.Curve._
+import org.scalatest.FunSpec
 
 class GoldBugTest extends FunSpec {
+  def toHex(buf: Array[Byte]): String =
+    buf.map("%02X" format _).mkString.toLowerCase
+  def sha256(s: String): Array[Byte] =
+    MessageDigest.getInstance("SHA-256").digest(s.getBytes("UTF-8"))
+
   describe("PublicKey From Known PrivateKey") {
     it("Should default to outputting compressed keys") {
       assert(
@@ -17,99 +24,99 @@ class GoldBugTest extends FunSpec {
   }
 
   describe("Testing a number of known private key and public key pairs") {
-    {
-      val priv1 =
-        "97811b691dd7ebaeb67977d158e1da2c4d3eaa4ee4e2555150628acade6b344c"
-      val pub1 =
-        "02326209e52f6f17e987ec27c56a1321acf3d68088b8fb634f232f12ccbc9a4575"
-      describe("Pair 1") {
-        it("Can convert to a string and back") {
-          assert(PrivateKey(PrivateKey(priv1).toString) == PrivateKey(priv1))
-        }
-        it("Can properly derive a public key") {
-          assert(PublicKey(PrivateKey(priv1)) == PublicKey(pub1))
-        }
-        it("Can encoded and decode a public key") {
-          assert(PublicKey(PublicKey(pub1).toString) == PublicKey(pub1))
-          assert(
-              PublicKey(PublicKey(pub1).toString(compressed = false)) == PublicKey(
-                  pub1))
-        }
+    val priv1 =
+      "97811b691dd7ebaeb67977d158e1da2c4d3eaa4ee4e2555150628acade6b344c"
+    val pub1 =
+      "02326209e52f6f17e987ec27c56a1321acf3d68088b8fb634f232f12ccbc9a4575"
+    describe("Pair 1") {
+      it("Can convert to a string and back") {
+        assert(PrivateKey(PrivateKey(priv1).toString) == PrivateKey(priv1))
+        assert(PrivateKey(PrivateKey(priv1).toByteArray) == PrivateKey(priv1))
       }
-
-      val priv2 =
-        "8295702b2273896ae085c3caebb02985cab02038251e10b6f67a14340edb51b0"
-      val pub2 =
-        "0333952d51e42f7db05a6c9dd347c4a7b4d4167ba29191ce1b86a0c0dd39bffb58"
-      describe("Pair 2") {
-        it("Can convert to a string and back") {
-          assert(PrivateKey(PrivateKey(priv2).toString) == PrivateKey(priv2))
-        }
-        it("Can properly derive a public key") {
-          assert(PrivateKey(priv2).getPublicKey == PublicKey(pub2))
-        }
-        it("Can encoded and decode a public key") {
-          assert(PublicKey(PublicKey(pub2).toString) == PublicKey(pub2))
-          assert(
-              PublicKey(PublicKey(pub2).toString(compressed = false)) == PublicKey(
-                  pub2))
-        }
-        it("Private key is different than the one in Pair 1") {
-          assert(PrivateKey(PrivateKey(priv2).toString) != PrivateKey(priv1))
-        }
-        it("Public key is different than the one in Pair 1") {
-          assert(PublicKey(PublicKey(pub2).toString) != PublicKey(
-                  PublicKey(pub1)))
-        }
+      it("Can properly derive a public key") {
+        assert(PublicKey(PrivateKey(priv1)) == PublicKey(pub1))
+      }
+      it("Can encoded and decode a public key") {
+        assert(PublicKey(PublicKey(pub1).toString) == PublicKey(pub1))
+        assert(
+            PublicKey(PublicKey(pub1).toString(compressed = false)) == PublicKey(
+                pub1))
       }
     }
 
-    describe("Pair 3") {
-      val priv =
-        "e9d5516cb0ae45952fa11473a469587d6c0e8aeef3d6b0cca6f4497c725f314c"
-      val pub =
-        "033142109aba8e415c73defc83339dcec52f40ce762421c622347a7840294b3423"
+    val priv2 =
+      "8295702b2273896ae085c3caebb02985cab02038251e10b6f67a14340edb51b0"
+    val pub2 =
+      "0333952d51e42f7db05a6c9dd347c4a7b4d4167ba29191ce1b86a0c0dd39bffb58"
+    describe("Pair 2") {
       it("Can convert to a string and back") {
-        assert(PrivateKey(PrivateKey(priv).toString) == PrivateKey(priv))
+        assert(PrivateKey(PrivateKey(priv2, 16).toString) == PrivateKey(priv2))
       }
       it("Can properly derive a public key") {
-        assert(PrivateKey(priv).getPublicKey == PublicKey(pub))
+        assert(PrivateKey(priv2).getPublicKey == PublicKey(pub2))
       }
       it("Can encoded and decode a public key") {
-        assert(PublicKey(PublicKey(pub).toString) == PublicKey(pub))
+        assert(PublicKey(PublicKey(pub2).toString) == PublicKey(pub2))
         assert(
-            PublicKey(PublicKey(pub).toString(compressed = false)) == PublicKey(
-                pub))
+            PublicKey(PublicKey(pub2).toString(compressed = false)) == PublicKey(
+                pub2))
+      }
+      it("Private key is different than the one in Pair 1") {
+        assert(PrivateKey(PrivateKey(priv2).toString) != PrivateKey(priv1))
+      }
+      it("Public key is different than the one in Pair 1") {
+        assert(
+            PublicKey(PublicKey(pub2).toString) != PublicKey(PublicKey(pub1)))
       }
     }
+  }
 
-    describe("Pair 4") {
-      val priv =
-        "9e15c053f17c0991163073a73bc7e4b234c6c55c5f85bb397ed39f14c46a64bd"
-      val pub =
-        "02256b4b6062521370d21447914fae65deacd6a5d86347e6e69e66daab8616fae1"
-      it("Can convert to a string and back") {
-        assert(PrivateKey(PrivateKey(priv).toString) == PrivateKey(priv))
-      }
-      it("Can properly derive a public key") {
-        assert(PrivateKey(priv).getPublicKey == PublicKey(pub))
-      }
-      it("Can encoded and decode a public key") {
-        assert(PublicKey(PublicKey(pub).toString) == PublicKey(pub))
-        assert(
-            PublicKey(PublicKey(pub).toString(compressed = false)) == PublicKey(
-                pub))
-      }
+  describe("Pair 3") {
+    val priv =
+      "e9d5516cb0ae45952fa11473a469587d6c0e8aeef3d6b0cca6f4497c725f314c"
+    val pub =
+      "033142109aba8e415c73defc83339dcec52f40ce762421c622347a7840294b3423"
+    it("Can convert to a string and back") {
+      assert(PrivateKey(PrivateKey(priv).toString) == PrivateKey(priv))
+    }
+    it("Can properly derive a public key") {
+      assert(PrivateKey(priv).getPublicKey == PublicKey(pub))
+    }
+    it("Can encoded and decode a public key") {
+      assert(PublicKey(PublicKey(pub).toString) == PublicKey(pub))
+      assert(
+          PublicKey(PublicKey(pub).toString(compressed = false)) == PublicKey(
+              pub))
+    }
+  }
+
+  describe("Pair 4") {
+    val priv =
+      "9e15c053f17c0991163073a73bc7e4b234c6c55c5f85bb397ed39f14c46a64bd"
+    val pub =
+      "02256b4b6062521370d21447914fae65deacd6a5d86347e6e69e66daab8616fae1"
+    it("Can convert to a string and back") {
+      assert(PrivateKey(PrivateKey(priv).toString) == PrivateKey(priv))
+    }
+    it("Can properly derive a public key") {
+      assert(PrivateKey(priv).getPublicKey == PublicKey(pub))
+    }
+    it("Can encoded and decode a public key") {
+      assert(PublicKey(PublicKey(pub).toString) == PublicKey(pub))
+      assert(
+          PublicKey(PublicKey(pub).toString(compressed = false)) == PublicKey(
+              pub))
     }
   }
 
   describe("Signature Tests") {
     val privKey = PrivateKey(
-        "8295702b2273896ae085c3caebb02985cab02038251e10b6f67a14340edb51b0")
+        "8295702b2273896ae085c3caebb02985cab02038251e10b6f67a14340edb51b0", 16)
     val pubKey = privKey.getPublicKey
 
     it("Should compute the public key properly") {
-      assert(pubKey.toString == "0333952d51e42f7db05a6c9dd347c4a7b4d4167ba29191ce1b86a0c0dd39bffb58")
+      assert(
+          pubKey.toString == "0333952d51e42f7db05a6c9dd347c4a7b4d4167ba29191ce1b86a0c0dd39bffb58")
     }
 
     it("Should be able to verify reference signatures") {
@@ -251,6 +258,47 @@ class GoldBugTest extends FunSpec {
           check("금조류(琴鳥類, lyrebird)는 오스트레일리아 남부에 사는 참새목의 한 부류로, 주변의 소리를 잘 따라한다. 거문고새라고도 한다."))
       assert(
           check("コトドリ属（コトドリぞく、学名 Menura）はコトドリ上科コトドリ科 Menuridae に属する鳥の属の一つ。コトドリ科は単型である。"))
+    }
+  }
+
+  describe("Deterministic random number generation") {
+    it("Should handle test values generated by python-ecdsa 0.9") {
+      /* Code to make your own vectors:
+
+         ```
+         class gen:
+             def order(self): return 115792089237316195423570985008687907852837564279074904382605163141518161494337
+         dummy = gen()
+         for i in range(10): ecdsa.rfc6979.generate_k(dummy, i, hashlib.sha256, hashlib.sha256(str(i)).digest())
+         ```
+       */
+      def encode(i: Int, length: Int): Array[Byte] =
+        Array.fill[Byte](length - 1)(0x00) ++ Array(i.toByte)
+      def check(i: Int): java.math.BigInteger =
+        PrivateKey(encode(i, 32))
+          .deterministicGenerateK(sha256(i.toString))
+          .nextK
+      assert(
+          toHex(sha256(0.toString)) == "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9")
+      assert(
+          toHex(encode(0, 32)) == "0000000000000000000000000000000000000000000000000000000000000000")
+      assert(
+          toHex(check(0).toByteArray) == "487ab3b9b831a0a439036815b299567ca10f97b1ffd6d8fdf01f1554dcd8885d")
+      assert(
+          toHex(check(1).toByteArray) == "00f24af0377e1b27fbebae63b3bec9b249b5bb0b0ba975896dbf35d79b189d19d3")
+      assert(
+          toHex(check(2).toByteArray) == "009165e4c79e832d82445a50a4a4ec563001e682d6142a5bd6664a0ac25d8759b0")
+    }
+  }
+
+  describe("Deterministic Signature Tests") {
+    val privKey = PrivateKey(
+        "8295702b2273896ae085c3caebb02985cab02038251e10b6f67a14340edb51b0", 16)
+    it("Should deterministically produce signatures according to RFC 6979") {
+      assert(
+          privKey.sign("foo") == "1c3045022100927247ae8b1d692d99096ea0a352ca99a4af84377af8152ccca671f24bc6169702206c3d28b9025d618c20612c4fdde67f052abf0e5e08c471c5c88baa96ce9538e1")
+      assert(
+        privKey.sign("barr") == "1b3045022100c738f07424690873da0afadd04a9afd4aedb3abe6db7cea6daed06a211c6dd6f02201c386378ab4e9438af27601a9887c361dd3c9661d04322c94393edb7cd8cd512")
     }
   }
 }

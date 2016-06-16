@@ -6,14 +6,16 @@ package gold.bug.secp256k1
   */
 import java.io.ByteArrayOutputStream
 import java.security.{MessageDigest, SecureRandom}
-import java.util.Random
 
 import org.spongycastle.asn1._
 import org.spongycastle.asn1.sec.SECNamedCurves
+import org.spongycastle.crypto.digests.SHA256Digest
 import org.spongycastle.crypto.generators.ECKeyPairGenerator
-import org.spongycastle.crypto.params.{ECDomainParameters, ECKeyGenerationParameters, ECPrivateKeyParameters, ECPublicKeyParameters}
-import org.spongycastle.crypto.signers.ECDSASigner
+import org.spongycastle.crypto.params._
+import org.spongycastle.crypto.signers.{ECDSASigner, HMacDSAKCalculator}
 import org.spongycastle.math.ec.{ECAlgorithms, ECPoint}
+
+import scala.annotation.tailrec
 
 // TODO: Parametrize with ECDomainParameters or something?
 object Curve { self =>
@@ -33,7 +35,7 @@ object Curve { self =>
       * @param includeRecoveryByte A boolean indicating whether a recovery byte should be included (defaults to true)
       * @return
       */
-    def sign(data: String, includeRecoveryByte: Boolean = false): String = {
+    def sign(data: String, includeRecoveryByte: Boolean = true): String = {
       sign(data.getBytes("UTF-8"), includeRecoveryByte)
     }
 
@@ -48,11 +50,38 @@ object Curve { self =>
                includeRecoveryByte)
     }
 
-    // TODO: Make this actually deterministic
-    // https://github.com/vbuterin/pybitcointools/blob/8e8a33d7281c871950519e5f256ad08cf0d5df69/bitcoin/main.py#L493
-    def deterministicGenerateK(hash: Array[Byte]): java.math.BigInteger = {
-      val random: Random = new SecureRandom()
-      new java.math.BigInteger(curve.getN.bitLength, random)
+    /**
+      * Convert this private key to an array of bytes
+      * @return An array of bytes, with the same number of bytes as the curve modulus
+      */
+    def toByteArray: Array[Byte] = {
+      val bytes: Array[Byte] = D.toByteArray.dropWhile(z => z == 0x00.toByte)
+      assert(bytes.length * 8 <= curve.getN.bitLength,
+             "Private key cannot have more than " + curve.getN.bitLength +
+             " bits (had " + bytes.length * 8 + ")")
+      val curveBytes: Int = curve.getN.bitLength / 8
+      assert(curveBytes * 8 == curve.getN.bitLength)
+      if (bytes.length < curveBytes)
+        Array.fill[Byte](curveBytes - bytes.length)(0x00) ++ bytes
+      else bytes
+    }
+
+    /**
+      * Generate a random number k following the specification in RFC 6979, Section 3.2
+      * https://tools.ietf.org/html/rfc6979#section-3.2
+      * @param messageHash The data to be used in generating the signature
+      * @return A stream of random numbers deterministically generated from the messageHash and the private key
+      */
+    def deterministicGenerateK(messageHash: Array[Byte]): HMacDSAKCalculator = {
+      val curveBytes: Int = curve.getN.bitLength / 8
+      assert(curveBytes * 8 == curve.getN.bitLength,
+             "Curve is not an even number of bytes in length")
+      assert(
+          curveBytes == messageHash.length,
+          "Hashed input is not the same length as the number of bytes in the curve")
+      val kCalculator = new HMacDSAKCalculator(new SHA256Digest)
+      kCalculator.init(curve.getN, key.getD, messageHash)
+      kCalculator
     }
 
     private def ecdsaDERBytes(
@@ -70,34 +99,46 @@ object Curve { self =>
 
     /**
       * Sign a byte array representing hashed data
-      * @param hash A byte array to be signed
+      * @param messageHash A byte array to be signed
       * @param includeRecoveryByte A boolean indicating whether a recovery byte should be included
       * @return A hex string containing the DER signature
       */
-    def signHash(
-        hash: Array[Byte], includeRecoveryByte: Boolean = true): String = {
+    def signHash(messageHash: Array[Byte],
+                 includeRecoveryByte: Boolean = true): String = {
       // Generate an RFC 6979 compliant signature
       // See:
       //  - https://tools.ietf.org/html/rfc6979
       //  - https://github.com/bcgit/bc-java/blob/master/core/src/test/java/org/bouncycastle/crypto/test/DeterministicDSATest.java#L27
-      val z: java.math.BigInteger = new java.math.BigInteger(1, hash)
-      val k: java.math.BigInteger = deterministicGenerateK()
-      val kp: ECPoint = curve.getG.multiply(k).normalize()
-      val n: java.math.BigInteger = curve.getN
-      val r: java.math.BigInteger = kp.getXCoord.toBigInteger.mod(n)
-      val _s: java.math.BigInteger =
-        k.modInverse(n).multiply(r.multiply(D).add(z)).mod(n)
-      val s: java.math.BigInteger =
-        if (_s.add(_s).compareTo(n) == -1) _s else n.subtract(_s)
-      val builder = new StringBuilder()
-      if (includeRecoveryByte) {
+      val curveBytes: Int = curve.getN.bitLength / 8
+      assert(curveBytes * 8 == curve.getN.bitLength,
+             "Curve is not an even number of bytes in length")
+      assert(
+          curveBytes == messageHash.length,
+          "Hashed input is not the same length as the number of bytes in the curve")
+      val z = new java.math.BigInteger(1, messageHash)
+      val n = curve.getN
+      val kCalculator = deterministicGenerateK(messageHash)
+      class Parameters(val recoveryByte: Byte,
+                       val r: java.math.BigInteger,
+                       val s: java.math.BigInteger)
+      @tailrec def getParameters: Parameters = {
+        val k = kCalculator.nextK
+        val kp = curve.getG.multiply(k).normalize
+        val r = kp.getXCoord.toBigInteger.mod(n)
+        val _s = k.modInverse(n).multiply(r.multiply(D).add(z)).mod(n)
+        val s = if (_s.add(_s).compareTo(n) == -1) _s else n.subtract(_s)
         val recoveryByte =
-          0x1B +
-          (if (kp.getYCoord.toBigInteger.testBit(0) ^ _s != s) 1 else 0) +
-          (if (r.compareTo(n) == -1) 0 else 2)
-        builder.append("%02x".format(recoveryByte & 0xff))
+          (0x1B + (if (kp.getYCoord.toBigInteger.testBit(0) ^ _s != s) 1
+                   else 0) + (if (r.compareTo(n) == -1) 0 else 2)).toByte
+        if (s.equals(java.math.BigInteger.ZERO) ||
+            r.equals(java.math.BigInteger.ZERO)) getParameters
+        else new Parameters(recoveryByte, r, s)
       }
-      for (byte <- ecdsaDERBytes(r, s)) builder.append(
+      val parameters = getParameters
+      val builder = new StringBuilder()
+      if (includeRecoveryByte)
+        builder.append("%02x".format(parameters.recoveryByte & 0xff))
+      for (byte <- ecdsaDERBytes(parameters.r, parameters.s)) builder.append(
           "%02x".format(byte & 0xff))
       builder.toString()
     }
@@ -138,12 +179,46 @@ object Curve { self =>
     private val curve = self.curve
 
     /**
+      * Construct a random new private key
+      */
+    def apply(): PrivateKey = {
+      PrivateKey.generateRandom
+    }
+
+    /**
       * Construct a private key from a hexadecimal string
       * @param input A hexadecimal string
       * @return A private key with exponent D corresponding to the input
       */
     def apply(input: String): PrivateKey = {
       new PrivateKey(new java.math.BigInteger(input, 16))
+    }
+
+    /**
+      * Construct a private key from a byte array
+      * @param input A byte array
+      * @return A private key with exponent D corresponding to the input
+      */
+    def apply(input: Array[Byte]): PrivateKey = {
+      new PrivateKey(new java.math.BigInteger(Array(0x00.toByte) ++ input))
+    }
+
+    /**
+      * Construct a private key from a string with specified base
+      * @param input A hexadecimal string
+      * @return A private key with exponent D corresponding to the input
+      */
+    def apply(input: String, base: Int): PrivateKey = {
+      new PrivateKey(new java.math.BigInteger(input, base))
+    }
+
+    /**
+      * Construct a private key from a java.math.BigInteger
+      * @param input A hexadecimal string
+      * @return A private key with exponent D corresponding to the input
+      */
+    def apply(input: java.math.BigInteger): PrivateKey = {
+      new PrivateKey(input)
     }
 
     /**
@@ -167,10 +242,10 @@ object Curve { self =>
     }
   }
 
-  class PublicKey(point: ECPoint) {
+  class PublicKey(_point: ECPoint) {
     private val curve = self.curve
-
-    private val key = new ECPublicKeyParameters(point.normalize, curve)
+    private val point = _point.normalize
+    private val key = new ECPublicKeyParameters(point, curve)
 
     /**
       * Convert to a X.509 encoded string
@@ -304,18 +379,14 @@ object Curve { self =>
 
     private def encodeECPoint(
         point: ECPoint, compressed: Boolean = true): String = {
-      val normalizedPoint = point.normalize
-
       if (compressed) {
-        encodeXCoordinate(!normalizedPoint.getYCoord.toBigInteger.testBit(0),
-                          normalizedPoint.getXCoord.toBigInteger)
+        encodeXCoordinate(!point.getYCoord.toBigInteger.testBit(0),
+                          point.getXCoord.toBigInteger)
       } else {
         val builder = new StringBuilder()
         builder.append("04")
-        zeroPadLeft(
-            builder, normalizedPoint.getXCoord.toBigInteger.toString(16))
-        zeroPadLeft(
-            builder, normalizedPoint.getYCoord.toBigInteger.toString(16))
+        zeroPadLeft(builder, point.getXCoord.toBigInteger.toString(16))
+        zeroPadLeft(builder, point.getYCoord.toBigInteger.toString(16))
         builder.toString()
       }
     }
