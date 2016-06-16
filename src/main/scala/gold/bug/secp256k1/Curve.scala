@@ -198,12 +198,12 @@ object Curve { self =>
       * @return A private key with exponent D corresponding to the input
       */
     def apply(input: Array[Byte]): PrivateKey = {
-      new PrivateKey(new java.math.BigInteger(1, Array(0x00.toByte) ++ input))
+      new PrivateKey(new java.math.BigInteger(1, input))
     }
 
     /**
       * Construct a private key from a string with specified base
-      * @param input A hexadecimal string
+      * @param input A string with the specified base
       * @return A private key with exponent D corresponding to the input
       */
     def apply(input: String, base: Int): PrivateKey = {
