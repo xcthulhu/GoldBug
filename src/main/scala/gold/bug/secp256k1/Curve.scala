@@ -134,12 +134,10 @@ object Curve { self =>
         else new Parameters(recoveryByte, r, s)
       }
       val parameters = getParameters
-      val builder = new StringBuilder()
-      if (includeRecoveryByte)
-        builder.append("%02x".format(parameters.recoveryByte & 0xff))
-      for (byte <- ecdsaDERBytes(parameters.r, parameters.s)) builder.append(
-          "%02x".format(byte & 0xff))
-      builder.toString()
+      ((if (includeRecoveryByte) Array(parameters.recoveryByte)
+        else Array.empty) ++ ecdsaDERBytes(parameters.r, parameters.s))
+        .map("%02x" format _)
+        .mkString
     }
 
     /**
