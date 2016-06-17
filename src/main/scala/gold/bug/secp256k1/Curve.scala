@@ -71,16 +71,19 @@ object Curve { self =>
       * @return A deterministic random number generator, where the first generated value is precisely the number specified in RFC 6979
       */
     def getDeterministicKGenerator(
-        messageHash: Array[Byte]): HMacDSAKCalculator = {
+        messageHash: Array[Byte]): Iterator[BigInteger] = {
       val curveBytes: Int = curve.getN.bitLength / 8
       assert(curveBytes * 8 == curve.getN.bitLength,
-             "Curve is not an even number of bytes in length")
+        "Curve is not an even number of bytes in length")
       assert(
-          curveBytes == messageHash.length,
-          "Hashed input is not the same length as the number of bytes in the curve")
+        curveBytes == messageHash.length,
+        "Hashed input is not the same length as the number of bytes in the curve")
       val kCalculator = new HMacDSAKCalculator(new SHA256Digest)
       kCalculator.init(curve.getN, key.getD, messageHash)
-      kCalculator
+      new Iterator[BigInteger] {
+        val hasNext: Boolean = true
+        def next(): BigInteger = kCalculator.nextK()
+      }
     }
 
     private def ecdsaDERBytes(r: BigInteger, s: BigInteger): Array[Byte] = {
@@ -113,12 +116,9 @@ object Curve { self =>
           "Hashed input is not the same length as the number of bytes in the curve")
       val z = new BigInteger(1, messageHash)
       val n = curve.getN
-      val kCalculator = getDeterministicKGenerator(messageHash)
-      abstract class P
+      val bigZero = BigInteger.ZERO
       case class Parameters(recoveryByte: Byte, r: BigInteger, s: BigInteger)
-          extends P
-      @tailrec def getParameters: Parameters = {
-        val k = kCalculator.nextK
+      getDeterministicKGenerator(messageHash).map { k =>
         val kp = curve.getG.multiply(k).normalize
         val r = kp.getXCoord.toBigInteger.mod(n)
         val _s = k.modInverse(n).multiply(r.multiply(D).add(z)).mod(n)
@@ -126,14 +126,13 @@ object Curve { self =>
         val recoveryByte =
           (0x1B + (if (kp.getYCoord.toBigInteger.testBit(0) ^ _s != s) 1
                    else 0) + (if (r.compareTo(n) == -1) 0 else 2)).toByte
-        if (s.equals(BigInteger.ZERO) || r.equals(BigInteger.ZERO))
-          getParameters
-        else new Parameters(recoveryByte, r, s)
-      }
-      val parameters = getParameters
-      Hex.toHexString(
-          (if (includeRecoveryByte) Array(parameters.recoveryByte)
-           else Array.empty) ++ ecdsaDERBytes(parameters.r, parameters.s))
+        Parameters(recoveryByte, r, s)
+      }.filterNot { p =>
+        (p.r equals bigZero) || (p.s equals bigZero)
+      }.map { p =>
+        (if (includeRecoveryByte) Array(p.recoveryByte) else Array.empty) ++
+        ecdsaDERBytes(p.r, p.s)
+      }.map(Hex.toHexString).next()
     }
 
     /**
@@ -352,37 +351,24 @@ object Curve { self =>
   object PublicKey {
     private val curve = self.curve
 
-    private def zeroPadLeft(builder: StringBuilder, input: String): Unit = {
-      assert(input.length * 4 <= curve.getN.bitLength,
-             "Input:\n\n" + input + "\n\ncannot have more than " +
-             curve.getN.bitLength + "bits, the curve modulus (had " +
-             input.length * 4 + " bits)")
-      if (input.length * 4 < curve.getN.bitLength)
-        for (_ <- 1 to (curve.getN.bitLength / 4 - input.length)) builder
-          .append("0")
-      builder.append(input)
-    }
-
     private def encodeXCoordinate(
         yEven: Boolean, xCoordinate: BigInteger): String = {
-      val builder = new StringBuilder()
-      builder.append(if (yEven) "02" else "03")
-      zeroPadLeft(builder, xCoordinate.toString(16))
-      builder.toString()
+      val xCoodinateHex = xCoordinate.toString(16)
+      val xBytes = xCoodinateHex.length
+      val curveBits = curve.getN.bitLength
+      assert(
+          xBytes * 4 <= curveBits,
+          "Input:\n\n" + xCoodinateHex + "\n\ncannot have more than " +
+          curveBits + " bits, the number of bits in the curve modulus (had " +
+          xBytes * 4 + " bits)")
+      (List(if (yEven) "02" else "03") ++
+          List.fill[String](curveBits / 4 - xBytes)("0") ++
+          xCoodinateHex).mkString
     }
 
     private def encodeECPoint(
         point: ECPoint, compressed: Boolean = true): String = {
-      if (compressed) {
-        encodeXCoordinate(!point.getYCoord.toBigInteger.testBit(0),
-                          point.getXCoord.toBigInteger)
-      } else {
-        val builder = new StringBuilder()
-        builder.append("04")
-        zeroPadLeft(builder, point.getXCoord.toBigInteger.toString(16))
-        zeroPadLeft(builder, point.getYCoord.toBigInteger.toString(16))
-        builder.toString()
-      }
+      Hex.toHexString(point.getEncoded(compressed))
     }
 
     private def decodeECPoint(input: String): ECPoint = {
@@ -455,9 +441,8 @@ object Curve { self =>
         assert(
             r.compareTo(p.mod(n)) >= 0, "Unable to find second key candidate")
       // 1.1. Let x = r + jn.
-      val encodedPoint = encodeXCoordinate(
-          yEven, if (isSecondKey) r.add(n) else r)
-      val R = decodeECPoint(encodedPoint)
+      val R = decodeECPoint(
+          encodeXCoordinate(yEven, if (isSecondKey) r.add(n) else r))
       val eInv = n.subtract(new BigInteger(1, hash))
       val rInv = r.modInverse(n)
       // 1.6.1 Compute Q = r^-1 (sR + -eG)

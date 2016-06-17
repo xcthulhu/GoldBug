@@ -280,7 +280,7 @@ class GoldBugTest extends FunSpec {
       def check(i: Int): BigInteger =
         PrivateKey(encode(i, 32))
           .getDeterministicKGenerator(sha256(i.toString))
-          .nextK
+          .next
       assert(
           toHex(sha256(0.toString)) == "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9")
       assert(
@@ -301,7 +301,7 @@ class GoldBugTest extends FunSpec {
       assert(
           privKey.sign("foo") == "1c3045022100927247ae8b1d692d99096ea0a352ca99a4af84377af8152ccca671f24bc6169702206c3d28b9025d618c20612c4fdde67f052abf0e5e08c471c5c88baa96ce9538e1")
       assert(
-        privKey.sign("barr") == "1b3045022100c738f07424690873da0afadd04a9afd4aedb3abe6db7cea6daed06a211c6dd6f02201c386378ab4e9438af27601a9887c361dd3c9661d04322c94393edb7cd8cd512")
+          privKey.sign("barr") == "1b3045022100c738f07424690873da0afadd04a9afd4aedb3abe6db7cea6daed06a211c6dd6f02201c386378ab4e9438af27601a9887c361dd3c9661d04322c94393edb7cd8cd512")
     }
   }
 }
