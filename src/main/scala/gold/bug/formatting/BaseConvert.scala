@@ -43,7 +43,7 @@ object BaseConvert {
     */
   def decode(input: String, inputRadix: Int): Array[Byte] = {
     inputRadix match {
-      case 16 => DatatypeConverter.parseHexBinary(input)
+      case 16 => DatatypeConverter.parseHexBinary(input.replaceFirst("^0[X,x]", ""))
       case 58 => Base58.decode(input)
       case 64 => DatatypeConverter.parseBase64Binary(input)
       case _ =>
