@@ -226,9 +226,8 @@ class GoldBugTest extends FunSpec {
     }
 
     it("Should verify ECDSA signatures signed by the public key's private key") {
-      def check(data: String): Boolean = {
+      def check(data: String): Boolean =
         pubKey.verify(data, privKey.sign(data, includeRecoveryByte = false))
-      }
       assert(check("foo"))
       assert(check("bar"))
       assert(check("barr"))
@@ -249,9 +248,8 @@ class GoldBugTest extends FunSpec {
     }
 
     it("Should verify signatures extended with a recovery byte signed by the public key's private key") {
-      def check(data: String): Boolean = {
+      def check(data: String): Boolean =
         pubKey.verify(data, privKey.sign(data, includeRecoveryByte = true))
-      }
       assert(check("foo"))
       assert(check("bar"))
       assert(check("barr"))
@@ -502,32 +500,32 @@ class GoldBugTest extends FunSpec {
     }
 
     it("Should properly parse valid Ethereum addresses," +
-      " convert them to base 58," +
-      " and convert them back into Ethereum addresses") {
+        " convert them to base 58," +
+        " and convert them back into Ethereum addresses") {
       def check(address: String) =
         assert(EthereumAddress(EthereumAddress(address).toByteArray) ==
-          EthereumAddress(address))
+            EthereumAddress(address))
       Seq("0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed",
-        "0xfB6916095ca1df60bB79Ce92cE3Ea74c37c5d359",
-        "0xdbF03B407c01E7cD3CBea99509d93f8DDDC8C6FB",
-        "0xD1220A0cf47c7B9Be7A2E6BA89F429762e7b9aDb",
-        "0x5A4EAB120fB44eb6684E5e32785702FF45ea344D",
-        "0x5be4BDC48CeF65dbCbCaD5218B1A7D37F58A0741",
-        "0xa7dD84573f5ffF821baf2205745f768F8edCDD58",
-        "0x027a49d11d118c0060746F1990273FcB8c2fC196",
-        "0x689E3fE51F45760Ab73D237d28fc1d2C8EaC6D71",
-        "0x97D509F0b388daE6D000C33193F4645D1e71Dc54",
-        "0xa4Fd5bD20Cf5A7CF1c5A6015D2b3e08A3eC1b1a7",
-        "0x230AE42Daf56B494E4b9E6D8Cce99F5E14FE29c1",
-        "0xC19D1EDB7FC943f2abbF576f6058c2425B347AB9",
-        "0x4f936Bb00CaaD116adc3861146dd8f68BF66F4E6",
-        "0xE74287ECA7B7151Fd194cdf7680EB50752671c47",
-        "0x5d32a30FBc5bddF39293CE3a9D74E4505dEb621D",
-        "0x27cBC66cbE3625c2857ce3CF77A9933e589545DF",
-        "0xE2A5f301EA7e461880Fe9A6B4b7EC1aBD023129A",
-        "0xe0DFdDA1D174aB7315C753EA198885ee88B52763",
-        "0x843655C78939365298FD9515b489939bADca64Ec",
-        "0x6bB7a54E4ef381e4C64009DDa0A9ED127aab852C").foreach(check)
+          "0xfB6916095ca1df60bB79Ce92cE3Ea74c37c5d359",
+          "0xdbF03B407c01E7cD3CBea99509d93f8DDDC8C6FB",
+          "0xD1220A0cf47c7B9Be7A2E6BA89F429762e7b9aDb",
+          "0x5A4EAB120fB44eb6684E5e32785702FF45ea344D",
+          "0x5be4BDC48CeF65dbCbCaD5218B1A7D37F58A0741",
+          "0xa7dD84573f5ffF821baf2205745f768F8edCDD58",
+          "0x027a49d11d118c0060746F1990273FcB8c2fC196",
+          "0x689E3fE51F45760Ab73D237d28fc1d2C8EaC6D71",
+          "0x97D509F0b388daE6D000C33193F4645D1e71Dc54",
+          "0xa4Fd5bD20Cf5A7CF1c5A6015D2b3e08A3eC1b1a7",
+          "0x230AE42Daf56B494E4b9E6D8Cce99F5E14FE29c1",
+          "0xC19D1EDB7FC943f2abbF576f6058c2425B347AB9",
+          "0x4f936Bb00CaaD116adc3861146dd8f68BF66F4E6",
+          "0xE74287ECA7B7151Fd194cdf7680EB50752671c47",
+          "0x5d32a30FBc5bddF39293CE3a9D74E4505dEb621D",
+          "0x27cBC66cbE3625c2857ce3CF77A9933e589545DF",
+          "0xE2A5f301EA7e461880Fe9A6B4b7EC1aBD023129A",
+          "0xe0DFdDA1D174aB7315C753EA198885ee88B52763",
+          "0x843655C78939365298FD9515b489939bADca64Ec",
+          "0x6bB7a54E4ef381e4C64009DDa0A9ED127aab852C").foreach(check)
     }
 
     it("Should parse properly even if the leading 0x is omitted from valid Ethereum addresses" +
