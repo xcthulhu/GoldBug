@@ -308,7 +308,7 @@ class GoldBugTest extends FunSpec {
       def check(i: Int): BigInteger =
         PrivateKey(encode(i, 32))
           .getDeterministicKGenerator(sha256(i.toString))
-          .next
+          .next()
       assert(
           toHex(sha256(0.toString)) == "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9")
       assert(
@@ -582,6 +582,60 @@ class GoldBugTest extends FunSpec {
           "0x8617E340B3D01FA5F11F306F4090FD50E238070d",
           "c5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470",
           "16UwLL9Risc3QfPqBUvKofHmBQ7wMtjvM").foreach(check)
+    }
+
+    it("Should pass a test taken from https://github.com/ethereumjs/ethereumjs-util/blob/master/test/index.js#L286") {
+      val privateKey = PrivateKey(
+          Array(234,
+                84,
+                189,
+                197,
+                45,
+                22,
+                63,
+                136,
+                201,
+                58,
+                176,
+                97,
+                87,
+                130,
+                207,
+                113,
+                138,
+                46,
+                251,
+                158,
+                81,
+                167,
+                152,
+                154,
+                171,
+                27,
+                8,
+                6,
+                126,
+                156,
+                28,
+                95).map(_.toByte))
+      val publicKeyString =
+        "043a443d8381a6798a70c6ff9304bdc8cb0163c23211d11628fae52ef9e0dca11a001cf066d56a8156fc201cd5df8a36ef694eecd258903fca7086c1fae7441e1d"
+      val address = "0x2f015c60e0be116b1f0cd534704db9c92118fb6a"
+      assert(
+          privateKey.publicKey.toString(compressed = false) == publicKeyString)
+      assert(EthereumAddress(privateKey).toString.toLowerCase == address)
+      assert(
+          EthereumAddress(PublicKey(publicKeyString)).toString.toLowerCase == address)
+    }
+    
+    it("Should pass a test taken from https://github.com/ethereum/ethereumj/blob/develop/ethereumj-core/src/test/java/org/ethereum/crypto/ECKeyTest.java") {
+      val privateKey = PrivateKey(
+          "c85ef7d79691fe79573b1a7064c19c1a9819ebdbd1faaab1a8ec92344438aaf4")
+      val publicKey = PublicKey(
+          "040947751e3022ecf3016be03ec77ab0ce3c2662b4843898cb068d74f698ccc8ad75aa17564ae80a20bb044ee7a6d903e8e8df624b089c95d66a0570f051e5a05b")
+      val address = "0xcd2a3d9f938e13cd947ec05abc7fe734df8dd826"
+      assert(privateKey.publicKey == publicKey)
+      assert(EthereumAddress(publicKey).toString.toLowerCase == address)
     }
   }
 }

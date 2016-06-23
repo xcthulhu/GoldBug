@@ -2,6 +2,7 @@ package gold.bug.addresses
 
 import gold.bug.HashUtil
 import gold.bug.formatting.BaseConvert
+import gold.bug.secp256k1.Curve.{PrivateKey, PublicKey}
 
 /**
   * Following EIP 55, see:
@@ -50,20 +51,6 @@ class EthereumAddress(_address: String) {
 
 object EthereumAddress {
 
-//  /**
-//    * Convert a public key to a BitCoin address
-//    * @param publicKey The public key to compute the BitCoin address for
-//    * @return A BitCoin address corresponding to the specified public key
-//    */
-//  def apply(publicKey: PublicKey): EthereumAddress = {
-//    val version: Byte = 0x00
-//    val hash = Hashers.ripemd160(
-//        Hashers.sha256(publicKey.toByteArray(compressed = false)))
-//    val checksum =
-//      Hashers.sha256(Hashers.sha256(Array[Byte](version) ++ hash)).take(4)
-//    new EthereumAddress(version, hash, checksum)
-//  }
-
   /**
     * Convert a string with specified radix to an Ethereum address
     * @param input An Ethereum address represented as a string
@@ -87,4 +74,23 @@ object EthereumAddress {
     */
   def apply(data: Seq[Byte]): EthereumAddress =
     new EthereumAddress(BaseConvert.encode(data, 16))
+
+  /**
+    * Convert a public key to an Ethereum address
+    * @param publicKey The public key to compute the Ethereum address for
+    * @return An Ethereum address corresponding to the specified public key
+    */
+  def apply(publicKey: PublicKey): EthereumAddress =
+    apply(
+        HashUtil
+          .keccak256(publicKey.toByteArray(compressed = false).drop(1))
+          .takeRight(20))
+
+  /**
+   * Convert a private key to an Ethereum address
+   * @param privateKey The private key to compute the Ethereum address for
+   * @return An Ethereum address corresponding to the public key of the specified private key
+   */
+  def apply(privateKey: PrivateKey): EthereumAddress =
+    apply(privateKey.publicKey)
 }

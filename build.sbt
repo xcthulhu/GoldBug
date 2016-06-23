@@ -1,6 +1,6 @@
 name := "goldbug"
 
-version := "1.4"
+version := "1.5"
 
 scalaVersion := "2.11.8"
 crossScalaVersions := Seq("2.11.8")

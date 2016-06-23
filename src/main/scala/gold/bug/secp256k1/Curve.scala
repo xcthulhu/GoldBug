@@ -134,10 +134,10 @@ object Curve {
       new PublicKey(curve.getG.multiply(D).normalize)
 
     /**
-     * Print the private key to a string with a specified base
-     * @param base Radix to output the private key to
-     * @return A string encoding the private key
-     */
+      * Print the private key to a string with a specified base
+      * @param base Radix to output the private key to
+      * @return A string encoding the private key
+      */
     def toString(base: Int): String =
       BaseConvert.encode(D.toByteArray, base)
 
@@ -257,6 +257,11 @@ object Curve {
     def toString(base: Int, compressed: Boolean): String =
       PublicKey.encodeECPoint(key.getQ, base, compressed)
 
+    /**
+      * Convert to an X.509 encoded array of bytes
+      * @param compressed Boolean whether to output a compressed key or not
+      * @return An X.509 encoded byte array
+      */
     def toByteArray(compressed: Boolean = true): Array[Byte] =
       PublicKey.x509ECPointBytes(key.getQ, compressed)
 
