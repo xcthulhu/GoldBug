@@ -28,6 +28,10 @@ object Curve {
   class PrivateKey(D: BigInteger) {
     private val key = new ECPrivateKeyParameters(D, curve)
 
+    def diffieHelmanSharedSecret(
+        publicKey: PublicKey, nonce: Long = 0): Array[Byte] = HashUtil.sha256(
+      Array(nonce.toByte) ++ publicKey.point.multiply(D).getEncoded(false))
+
     /**
       * Sign a UTF-8 encoded string (first takes SHA256 hash of string)
       * @param data A UTF-8 string
@@ -220,17 +224,18 @@ object Curve {
   }
 
   class PublicKey(_point: ECPoint) {
-    private val point = _point.normalize
-    private val key = new ECPublicKeyParameters(point, curve)
+    private val key = new ECPublicKeyParameters(_point.normalize, curve)
     private val verifier = new ECDSASigner()
     verifier.init(false, key)
+
+    val point: ECPoint = key.getQ
 
     /**
       * Convert to a compressed X.509 encoded hexadecimal string
       * @return A compressed X.509 encoded hexadecimal string
       */
     override def toString: String =
-      PublicKey.encodeECPoint(key.getQ, defaultBase, compressed = true)
+      PublicKey.encodeECPoint(point, defaultBase, compressed = true)
 
     /**
       * Convert to a X.509 encoded hexadecimal string
@@ -238,24 +243,24 @@ object Curve {
       * @return A X.509 encoded hexadecimal string
       */
     def toString(compressed: Boolean): String =
-      PublicKey.encodeECPoint(key.getQ, defaultBase, compressed)
+      PublicKey.encodeECPoint(point, defaultBase, compressed)
 
     /**
-      * Convert to a compressed X.509 encoded string
-      * @param base The base to encode the string to
+      * Convert to a compressed X.509 encoded string of specified radix (ie, base)
+      * @param base The radix (ie, base) to encode the string to
       * @return A compressed X.509 encoded string
       */
     def toString(base: Int): String =
-      PublicKey.encodeECPoint(key.getQ, base, compressed = true)
+      PublicKey.encodeECPoint(point, base, compressed = true)
 
     /**
-      * Convert to a X.509 encoded string
-      * @param base The base to encode the string to
+      * Convert to a X.509 encoded string of specified radix (ie, base)
+      * @param base The radix (ie, base) to encode the string to
       * @param compressed Boolean whether to output a compressed key or not
       * @return A X.509 encoded string
       */
     def toString(base: Int, compressed: Boolean): String =
-      PublicKey.encodeECPoint(key.getQ, base, compressed)
+      PublicKey.encodeECPoint(point, base, compressed)
 
     /**
       * Convert to an X.509 encoded array of bytes
@@ -263,7 +268,7 @@ object Curve {
       * @return An X.509 encoded byte array
       */
     def toByteArray(compressed: Boolean = true): Array[Byte] =
-      PublicKey.x509ECPointBytes(key.getQ, compressed)
+      PublicKey.x509ECPointBytes(point, compressed)
 
     private def verifyECDSA(hash: Seq[Byte], signature: Seq[Byte]): Boolean = {
       val decoder = new ASN1InputStream(signature.toArray)
@@ -339,10 +344,8 @@ object Curve {
     override def equals(other: Any): Boolean = other match {
       case that: PublicKey =>
         (that canEqual this) && {
-          val thisNormalizedPoint = key.getQ.normalize
-          val thatNormalizedPoint = that.key.getQ.normalize
-          thisNormalizedPoint.getXCoord == thatNormalizedPoint.getXCoord &&
-          thisNormalizedPoint.getYCoord == thatNormalizedPoint.getYCoord
+          this.point.getXCoord == that.point.getXCoord &&
+          this.point.getYCoord == that.point.getYCoord
         }
       case _ => false
     }

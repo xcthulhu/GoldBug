@@ -627,7 +627,7 @@ class GoldBugTest extends FunSpec {
       assert(
           EthereumAddress(PublicKey(publicKeyString)).toString.toLowerCase == address)
     }
-    
+
     it("Should pass a test taken from https://github.com/ethereum/ethereumj/blob/develop/ethereumj-core/src/test/java/org/ethereum/crypto/ECKeyTest.java") {
       val privateKey = PrivateKey(
           "c85ef7d79691fe79573b1a7064c19c1a9819ebdbd1faaab1a8ec92344438aaf4")
@@ -636,6 +636,16 @@ class GoldBugTest extends FunSpec {
       val address = "0xcd2a3d9f938e13cd947ec05abc7fe734df8dd826"
       assert(privateKey.publicKey == publicKey)
       assert(EthereumAddress(publicKey).toString.toLowerCase == address)
+    }
+  }
+
+  describe("Diffie Helman Shared Secrets") {
+    it("Works for two random private keys") {
+      val privateKey1 = PrivateKey.apply
+      val privateKey2 = PrivateKey.apply
+      assert(
+          privateKey1.diffieHelmanSharedSecret(privateKey2.publicKey) sameElements
+          privateKey2.diffieHelmanSharedSecret(privateKey1.publicKey))
     }
   }
 }
