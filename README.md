@@ -1,6 +1,8 @@
 GoldBug Cryptographic Library
 -----------------------------
 
+***WARNING: ALPHA LEVEL SOFTWARE***
+
 [![Build Status](https://travis-ci.org/xcthulhu/GoldBug.svg?branch=master)](https://travis-ci.org/xcthulhu/GoldBug)
 
 > ...If you do not take it up with you in some way, I shall be under the necessity of breaking your head with this shovel
